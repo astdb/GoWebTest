@@ -111,12 +111,14 @@ func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
 
 		} else {
 			for _, page := range pages {
-				pagesList = append(pagesList, page.Name())
+				pageName := page.Name()
+				pagesList = append(pagesList, pageName[:len(pageName) - len(".txt")])
 			}
 		}
 
 		p := &Page{Title: pageTitle, Pages: pagesList}
 		renderTemplate(w, "front", p)
+		return
 	}
 
 	p, err := loadPage(title)
