@@ -6,13 +6,14 @@ import (
 	"log"
 	"net/http"
 	"regexp"
+	// "fmt"
 )
 
 // pre-parse all templates (to help with caching)
-var templates = template.Must(template.ParseFiles("tmpl/edit.html", "tmpl/view.html"))
+var templates = template.Must(template.ParseFiles("tmpl/edit.html", "tmpl/view.html", "tmpl/front.html"))
 
 // regular expression to validate page paths
-var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)$")
+var validPath = regexp.MustCompile("^/(edit|save|view)/([a-zA-Z0-9]+)(/?)$")
 
 func main() {
 	// p1 := &Page{Title: "TestPage", Body: []byte("This is a sample page.")}
@@ -25,6 +26,9 @@ func main() {
 	http.HandleFunc("/edit/", makeHandler(editHandler))
 	http.HandleFunc("/save/", makeHandler(saveHandler))
 
+	// handler to show /view/frontpage for /
+	http.HandleFunc("/", frontPageHandler)
+
 	// serve directory of static resources
 	// http.Handle("/", http.FileServer(http.Dir("css/")))
 	http.Handle("/static/", http.StripPrefix("/static/", http.FileServer(http.Dir("static"))))
@@ -36,7 +40,8 @@ func main() {
 // struct to store a web page
 type Page struct {
 	Title string
-	Body  []byte // page body if []byte instead of string because that's what the IO libraries we use would require
+	Body  []byte	// page body if []byte instead of string because that's what the IO libraries we use would require
+	Pages []string	
 }
 
 func renderTemplate(w http.ResponseWriter, tmpl string, p *Page) {
@@ -66,6 +71,7 @@ func loadPage(title string) (*Page, error) {
 // wrapper taking a function literal of xHandler(resp, req, title) type and returns a function of type http.HandlerFunc
 func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		
 		// extract page title from request and call the provided handler 'fn'
 		m := validPath.FindStringSubmatch(r.URL.Path)
 		if m == nil {
@@ -78,8 +84,41 @@ func makeHandler(fn func (http.ResponseWriter, *http.Request, string)) http.Hand
 }
 
 // ----------------- handler functions for views, edits and saves -----------------
+// show a frontpage with a list of already created wiki pages 
+func frontPageHandler(w http.ResponseWriter, r *http.Request) {
+	http.Redirect(w, r, "/view/FrontPage/", http.StatusFound)
+}
+
 // view a webpage specified as http://server/view/webpage
 func viewHandler(w http.ResponseWriter, r *http.Request, title string) {
+	title = r.URL.Path[len("/view/"):]
+	if title == "FrontPage/" || title == "FrontPage" {		
+		// fmt.Fprintf(w, "Welcome to the %s!", title)
+		// return
+		
+		pageTitle := "FrontPage"
+
+		// get list of pages created
+		pages, err := ioutil.ReadDir("./data")
+		if err != nil {
+			log.Fatal(err)
+		}
+
+		pagesList := []string{}
+
+		if len(pages) <= 0 {
+			// provide link to create first page
+
+		} else {
+			for _, page := range pages {
+				pagesList = append(pagesList, page.Name())
+			}
+		}
+
+		p := &Page{Title: pageTitle, Pages: pagesList}
+		renderTemplate(w, "front", p)
+	}
+
 	p, err := loadPage(title)
 
 	// requested nonexistent page - redirect to edit page to create
